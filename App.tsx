@@ -1,118 +1,127 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, { useState } from 'react';
 import {
   SafeAreaView,
-  ScrollView,
-  StatusBar,
   StyleSheet,
-  Text,
-  useColorScheme,
   View,
 } from 'react-native';
-
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
+import Button from './components/Button';
+import Display from './components/Display';
+import Decimal from 'decimal.js-light';
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  full: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  appCtn: {
+    backgroundColor: 'black',
+    flexDirection: 'column',
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
+  display: {
+    flex: 1,
   },
-  highlight: {
-    fontWeight: '700',
+  row: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  cell: {
+    height: '100%',
   },
 });
 
-export default App;
+const MAX_DIGITS = 7;
+
+const ops: {[op: string]: (a: number, b: number) => string } = {
+  '+': (a, b) => parseFloat((new Decimal(a).plus(new Decimal(b))).toPrecision(MAX_DIGITS)).toString(),
+  '-': (a, b) => parseFloat((new Decimal(a).minus(new Decimal(b))).toPrecision(MAX_DIGITS)).toString(),
+  '×': (a, b) => parseFloat((new Decimal(a).times(new Decimal(b))).toPrecision(MAX_DIGITS)).toString(),
+  '÷': (a, b) => parseFloat((new Decimal(a).div(new Decimal(b))).toPrecision(MAX_DIGITS)).toString(),
+}
+
+let prevVal = 0;
+let nextReset = false;
+
+export default function App(): React.JSX.Element {
+  let [input, setInput] = useState('');
+  let [value, setValue] = useState('0');
+  function cbAc() {
+    prevVal = 0;
+    setInput('');
+    setValue('0');
+  }
+  function cbC() {
+    setValue('0');
+  }
+  function cbInput(ch: string) {
+    if (value === 'ERR') return;
+    let tempValue = value;
+    if (nextReset) {
+      tempValue = '0';
+      nextReset = false;
+    }
+    if (ch === '.' && tempValue.includes('.')) return;
+    if (ch === '.' && parseFloat(tempValue) === 0) {
+      ch = '0.'; 
+    }
+    if (tempValue[0] === '0' && ch !== '.' && !tempValue.includes('.')) {
+      tempValue = tempValue.slice(1);
+    }
+    const str = tempValue + ch;
+    setValue(str);
+  }
+  function cbOp(ch: string) {
+    if (!value) return;
+    if (value === 'ERR') return;
+    if (/^[\+\-×÷]$/.test(input[input.length - 1])) {
+      input = input.slice(0, input.length - 1);
+    }
+    setInput(input + ch);
+    prevVal = parseFloat(value);
+    setValue('0');
+  }
+  function cbEq() {
+    if (!input) return;
+    if (value === 'ERR') return;
+    if (input === '÷' && value === '0') {
+      setInput('');
+      setValue('ERR');
+    } else {
+      const func = ops[input];
+      if (value[value.length - 1] === '.') value = value.slice(0, value.length);
+      const result = func(prevVal, parseFloat(value));
+      setInput('');
+      setValue(result);
+    }
+    nextReset = true;
+  }
+  function cbNeg() {
+    if (!value) return;
+    if (value === 'ERR') return;
+    const valueNum = parseFloat(value);
+    setValue((-valueNum).toString());
+  }
+  const calLayout: Array<Array<{ text: string; onPress: () => void; flex: number; }>> = [
+    [{ text: 'AC', onPress: cbAc, flex: 1 }, { text: 'C', onPress: cbC, flex: 1 }, { text: '±', onPress: cbNeg, flex: 1 }, { text: '÷', onPress: () => { cbOp('÷') }, flex: 1 }],
+    [{ text: '7', onPress: () => { cbInput('7') }, flex: 1 }, { text: '8', onPress: () => { cbInput('8') }, flex: 1 }, { text: '9', onPress: () => { cbInput('9') }, flex: 1 }, { text: '×', onPress: () => { cbOp('×'); }, flex: 1 }],
+    [{ text: '4', onPress: () => { cbInput('4') }, flex: 1 }, { text: '5', onPress: () => { cbInput('5') }, flex: 1 }, { text: '6', onPress: () => { cbInput('6') }, flex: 1 }, { text: '-', onPress: () => { cbOp('-'); }, flex: 1 }],
+    [{ text: '1', onPress: () => { cbInput('1') }, flex: 1 }, { text: '2', onPress: () => { cbInput('2') }, flex: 1 }, { text: '3', onPress: () => { cbInput('3') }, flex: 1 }, { text: '+', onPress: () => { cbOp('+'); }, flex: 1 }],
+    [{ text: '0', onPress: () => { cbInput('0') }, flex: 2 }, { text: '.', onPress: () => { cbInput('.') }, flex: 1 }, { text: '=', onPress: cbEq, flex: 1 }],
+  ];
+  return (
+    <SafeAreaView style={[styles.full, styles.appCtn]}>
+      <View style={styles.display}>
+        <Display input={input} value={value}/>
+      </View>
+      <View>
+        {calLayout.map((row, index) => <View key={index} style={styles.row}>
+          {row.map(({ flex, text, onPress }) => <View key={text} style={[styles.cell, { aspectRatio: flex, flex }]}>
+            <Button text={text} onPress={onPress} type={/^[0-9.]$/.test(text) ? 'number' : 'operation' } />
+          </View>)}
+        </View>)}
+      </View>
+    </SafeAreaView>
+  );
+}
